@@ -2,6 +2,7 @@ import pandas as pd
 import polars as pl
 import datetime
 import typing as tp
+import numpy as np
 
 
 class PortfolioHistory:
@@ -199,14 +200,14 @@ class PortfolioHistory:
         df_daily['days_diff'] = df_daily['date'].diff().dt.days()
 
         df_daily['daily_ret_x'] = 1 - (df_daily['total_value_to_x'] / df_daily['total_value_to_x'].shift()) ** (
-                    1 / df_daily['days_diff'])
+            1 / df_daily['days_diff'])
         df_daily['daily_ret_y'] = 1 - (df_daily['total_value_to_y'] / df_daily['total_value_to_y'].shift()) ** (
-                    1 / df_daily['days_diff'])
+            1 / df_daily['days_diff'])
 
         df_daily['daily_hold_ret_x'] = 1 - (df_daily['hold_to_x'] / df_daily['hold_to_x'].shift()) ** (
-                    1 / df_daily['days_diff'])
+            1 / df_daily['days_diff'])
         df_daily['daily_hold_ret_y'] = 1 - (df_daily['hold_to_y'] / df_daily['hold_to_y'].shift()) ** (
-                    1 / df_daily['days_diff'])
+            1 / df_daily['days_diff'])
 
         df_full = df_daily.upsample("date", "1d").fill_null("backward")
 
@@ -229,7 +230,6 @@ class PortfolioHistory:
 
         mdd = pl.DataFrame(mdd.alias(to_col))
         return mdd
-
 
     def calculate_g_apy(self, df: pl.DataFrame) -> pl.DataFrame:
         """
