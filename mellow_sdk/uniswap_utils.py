@@ -6,7 +6,6 @@ class UniswapLiquidityAligner:
     """
     UniswapLiquidityAligner this is a class with standard Uniswap V3 formulas and transformations
     related to liquidity on the interval.
-
     Attributes:
         lower_price: Left bound for the UniswapV3 interval.
         upper_price: Right bound for the UniswapV3 interval.
@@ -22,7 +21,6 @@ class UniswapLiquidityAligner:
         """
         Args:
             price: Current price on market.
-
         Returns:
             real_price = y / x
         """
@@ -47,11 +45,9 @@ class UniswapLiquidityAligner:
     def x_to_liq(self, price, x):
         """
         Calculate the liquidity for a given amount of tokens X, price and a price range.
-
         Args:
             price: Current market price.
             x: Amount of X tokens.
-
         Returns:
             The amount of liquidity for the given price and amount of tokens X.
         """
@@ -70,11 +66,9 @@ class UniswapLiquidityAligner:
     def y_to_liq(self, price, y):
         """
         Calculate the liquidity for a given amount of tokens Y, price and a price range.
-
         Args:
             price: Current market price.
             y: Amount of Y tokens.
-
         Returns:
             The amount of liquidity for the given price and amount of tokens Y.
         """
@@ -93,12 +87,10 @@ class UniswapLiquidityAligner:
     def xy_to_liq(self, price, x, y):
         """
         Calculate the liquidity for a given amount of tokens X and Y, price and a price range.
-
         Args:
             price: Current market price.
             x: Amount of X tokens.
             y: Amount of Y tokens.
-
         Returns:
             Maximum liquidity that can be obtained for amounts, interval and current price, without swap.
         """
@@ -120,11 +112,9 @@ class UniswapLiquidityAligner:
     def liq_to_x(self, price, liq):
         """
         Calculate the amount of X tokens for a given amount of liquidity, price and a price range.
-
         Args:
             price: Current market price.
             liq: Given amount of liquidity
-
         Returns:
             The amount of token X for a given amount of liquidity and a price range.
         """
@@ -142,11 +132,9 @@ class UniswapLiquidityAligner:
     def liq_to_y(self, price, liq):
         """
         Calculate the amount of Y tokens for a given amount of liquidity, price and a price range.
-
         Args:
             price: Current market price.
             liq: Given amount of liquidity.
-
         Returns:
             The amount of token Y for a given amount of liquidity and market price.
         """
@@ -162,11 +150,9 @@ class UniswapLiquidityAligner:
     def liq_to_xy(self, price, liq):
         """
         Calculate the amount of X and Y tokens for a given amount of liquidity, price and a price range.
-
         Args:
             price: Current market price.
             liq: Amount of liquidity to be allocated.
-
         Returns:
             The amount of X tokens and the amount of Y tokens that must be allocated to provide required amount of
             liquidity at a given interval and price.
@@ -180,12 +166,10 @@ class UniswapLiquidityAligner:
     def check_xy_is_optimal(self, price, x, y):
         """
         Check if the given amount of X and Y tokens are optimal for a given price and a price range.
-
         Args:
             price: Current market price.
             x: Amount of X tokens.
             y: Amount of Y tokens.
-
         Returns:
             (is_optimal, x_liq, y_liq):
                 is_optimal:
@@ -214,20 +198,22 @@ class UniswapLiquidityAligner:
         if sqrt_price >= sqrt_upper:
             return x < 1e-6, liq_x, liq_y
 
-        return abs(liq_x - liq_y) < 1e-6, liq_x, liq_y
+        digits: int = len(str(round(liq_x)))
+        effective_digits = digits - 6
+        effective_diff = eval('1e'+str(effective_digits))
+
+        return abs(liq_x - liq_y) < effective_diff, liq_x, liq_y
 
     def get_amounts_for_swap_to_optimal(
         self, x: float, y: float, price: float, swap_fee: float
     ) -> Tuple[float, float]:
         """
         Calculate the amount of X or Y tokens that must be swapped to provide optimal liquidity at a given price.
-
         Args:
             x: Amount of X tokens.
             y: Amount of Y tokens.
             price: Current market price.
             swap_fee: Swap fee.
-
         Returns:
             (x_swap, y_swap):
                 x_swap: Amount of X tokens that must be swapped to provide optimal liquidity at a given price.
@@ -264,13 +250,11 @@ class UniswapLiquidityAligner:
         """
         Calculate the amount of X and Y tokens after optimal swap.
         The amount of X and Y tokens is optimal for a given price and a price range for minting them to UniV3.
-
         Args:
             x: Amount of X tokens.
             y: Amount of Y tokens.
             price: Current market price.
             swap_fee: Swap fee.
-
         Returns:
             (x_after_swap, y_after_swap):
                 x_after_swap: Amount of X tokens after optimal swap.

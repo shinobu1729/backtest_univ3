@@ -5,7 +5,7 @@ import copy
 
 from mellow_sdk.uniswap_utils import UniswapLiquidityAligner
 from mellow_sdk.positions import UniV3Position, BiCurrencyPosition
-from mellow_sdk.primitives import Pool
+from mellow_sdk.primitives import Pool, MIN_TICK, MAX_TICK
 
 
 class AbstractStrategy(ABC):
@@ -317,3 +317,171 @@ class StrategyByAddress(AbstractStrategy):
     def _tick_to_price(self, tick):
         price = np.power(1.0001, tick)
         return price
+
+
+class StrategyCatchThePrice(AbstractStrategy):
+    """
+    ``UniV3Passive`` is the passive strategy on UniswapV3 without rebalances.
+        lower_price: Lower bound of the interval
+        upper_price: Upper bound of the interval
+        rebalance_cost: Rebalancing cost, expressed in currency
+        pool: UniswapV3 Pool instance
+        name: Unique name for the instance
+    """
+
+    def __init__(
+        self,
+        name: str,
+        pool: Pool,
+        gas_cost: float,
+        width: int,
+        seconds_to_hold: int
+    ):
+        super().__init__(name)
+        self.fee_percent = pool.fee.percent
+        self.gas_cost = gas_cost
+        self.swap_fee = pool.fee.percent
+
+        self.width = width
+        self.seconds_to_hold = seconds_to_hold
+
+        self.last_mint_price = None
+        self.last_timestamp_in_interval = None
+        self.pos_num = None
+        self.w = 0
+
+    def create_pos(self, x_in, y_in, price, timestamp, portfolio):
+        print("- Create_pos -")
+        """
+            Swaps x_in, y_in in right proportion and mint to new interval
+        """
+        print("pos_num=", self.pos_num)
+        if self.pos_num is None:
+            self.pos_num = 1
+        else:
+            self.pos_num += 1
+
+        # bicurrency position that can swap tokens
+        bi_cur: BiCurrencyPosition = portfolio.get_position('main_vault')
+        print("main_vault:", bi_cur.to_xy(price))
+
+        # add tokens to bicurrency position
+        bi_cur.deposit(x_in, y_in)
+        print("[main_vault deposit]", "x_in:", x_in, "y_in:", y_in)
+
+        # new uni position
+        uni_pos = UniV3Position(
+            name=f'UniV3_{self.pos_num}',
+            lower_price=max(1.0001 ** MIN_TICK, price - self.width),
+            upper_price=min(1.0001 ** MAX_TICK, price + self.width),
+            fee_percent=self.fee_percent,
+            gas_cost=self.gas_cost
+        )
+
+        # add new position to portfolio
+        portfolio.append(uni_pos)
+
+        # uni_pos.aligner is UniswapLiquidityAligner, good class for working with liquidity operations
+        dx, dy = uni_pos.aligner.get_amounts_for_swap_to_optimal(
+            x_in, y_in, swap_fee=bi_cur.swap_fee, price=price
+        )
+
+        # swap tokens to right proportion (if price in interval swaps to equal liquidity in each token)
+        print("dx,dy:", dx, dy, "をスワップすればoptimalになるよ")
+        if dx > 0:
+            bi_cur.swap_x_to_y(dx, price=price)
+        if dy > 0:
+            bi_cur.swap_y_to_x(dy, price=price)
+
+        x_uni, y_uni = uni_pos.aligner.get_amounts_after_optimal_swap(
+            x_in, y_in, swap_fee=bi_cur.swap_fee, price=price
+        )
+
+        print("Swapped")
+        assert (x_uni, y_uni == bi_cur.to_xy(price))
+        optimal = uni_pos.aligner.check_xy_is_optimal(price, x_uni, y_uni)
+        print(optimal[0], optimal[1], optimal[1] - optimal[2])
+
+        # withdraw tokens from bicurrency
+        # because of float numbers precision subtract 1e-9
+        print("[main_vault withdraw]", "x", x_uni, "y", y_uni)
+        bi_cur.withdraw(x_uni, y_uni)
+
+        # deposit tokens to uni
+        print("[uni_pos deposit]", "x", x_uni, "y", y_uni)
+        uni_pos.deposit(x_uni, y_uni, price=price)
+
+        # remember last mint price to track price in interval
+        self.last_mint_price = price
+
+        # remember timestamp price was in interval
+        self.last_timestamp_in_interval = timestamp
+
+        print("=== Summary ====")
+        print("main_vault", "xy", bi_cur.to_xy(price), "price", price)
+        print("uni_pos", "xy", uni_pos.to_xy(price), "price", price)
+        print("================")
+
+    def rebalance(self, *args, **kwargs) -> str:
+        """
+            Function of AbstractStrategy
+            In Backtest.backtest this function process every row of historic data
+
+            Return: name of portfolio action, that will be processed by RebalanceViewer
+        """
+        # record is row of historic data
+        record = kwargs['record']
+        timestamp = record['timestamp']
+        event = record['event']
+
+        # portfolio managed by the strategy
+        portfolio = kwargs['portfolio']
+        price_before, price = record['price_before'], record['price']
+
+        # process only swap events
+        if event != 'swap':
+            return None
+
+        if len(portfolio.positions) == 0:
+            print("create main_vault")
+            # create biccurency positions for swap
+            bi_cur = BiCurrencyPosition(
+                name=f'main_vault',
+                swap_fee=self.swap_fee,
+                gas_cost=self.gas_cost,
+                x=0,
+                y=0,
+                x_interest=None,
+                y_interest=None
+            )
+            portfolio.append(bi_cur)
+
+            # create first uni interval
+            self.create_pos(x_in=1/price, y_in=1, price=price, timestamp=timestamp, portfolio=portfolio)
+            print("main_vault created")
+            return 'init'
+
+        # collect fees from uni
+        uni_pos = portfolio.get_position(f'UniV3_{self.pos_num}')
+        uni_pos.charge_fees(price_0=price_before, price_1=price)
+
+        # if price in interval update last_timestamp_in_interval
+        if abs(self.last_mint_price - price) < self.width:
+            self.last_timestamp_in_interval = timestamp
+            return None
+
+        # if price outside interval for long create new uni position
+        if (timestamp - self.last_timestamp_in_interval).total_seconds() > self.seconds_to_hold:
+            print("-- Rebalance Start --")
+            uni_pos = portfolio.get_position(f'UniV3_{self.pos_num}')
+            x_out, y_out = uni_pos.withdraw(price)
+            print("x_out:", x_out, "y_out:", y_out, "price:", price, "portfolio", portfolio)
+
+            portfolio.remove(f'UniV3_{self.pos_num}')
+            print("uni position removed")
+
+            self.create_pos(x_in=x_out, y_in=y_out, price=price, timestamp=timestamp, portfolio=portfolio)
+            print("-- Rebalance Done --")
+            return 'rebalance'
+
+        return None

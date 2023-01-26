@@ -82,13 +82,272 @@ class AbstractPosition(ABC):
         raise Exception(NotImplemented)
 
 
+class HoldPosition(AbstractPosition):
+    """
+        Just hold balance, negative or positive.
+        Used for research.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        x: float,
+        y: float
+    ) -> None:
+        super().__init__(name)
+        self.x = x
+        self.y = y
+
+    def change_balance(self, dx: float, dy: float) -> None:
+        self.x += dx
+        self.y += dy
+
+    def to_x(self, price: float) -> float:
+        assert price > 1e-16, f"Incorrect price = {price}"
+        res = self.x + self.y / price
+        return res
+
+    def to_y(self, price: float) -> float:
+        assert price > 1e-16, f"Incorrect price = {price}"
+        res = self.x * price + self.y
+        return res
+
+    def to_xy(self, price: float) -> Tuple[float, float]:
+        return self.x, self.y
+
+    def snapshot(
+        self, timestamp: datetime, price: float, block_number: Optional[int]
+    ) -> dict:
+        snapshot = {
+            f"{self.name}_value_x": float(self.x),
+            f"{self.name}_value_y": float(self.y),
+        }
+        return snapshot
+
+
+# class HedgePosition(AbstractPosition):
+#     """
+#         Used for research.
+#     """
+#
+#     def __init__(
+#         self,
+#         name: str,
+#         x: float = None,
+#         y: float = None,
+#     ) -> None:
+#         super().__init__(name)
+#         self.x = x
+#         self.y = y
+#
+#         self.hedge_positions = []
+#
+#     def add_hedge(self, x, price):
+#         self.hedge_positions.append((x, price))
+#
+#     def rebalance_hedge(self, x, price):
+#         total_hedge = 0
+#
+#         for hedge, _ in self.hedge_positions:
+#             total_hedge += hedge
+#
+#         if (x - total_hedge) > 1e-6:
+#             self.add_hedge(x=total_hedge - x, price=price)
+#
+#
+#     def to_x(self, price: float) -> float:
+#         return 0
+#
+#     def to_y(self, price: float) -> float:
+#         assert price > 1e-16, f"Incorrect price = {price}"
+#         res = 0
+#         for x, hedge_price in self.hedge_positions:
+#             res += x * (hedge_price - price)
+#
+#         return res
+#
+#     def to_xy(self, price: float) -> Tuple[float, float]:
+#         print('deprecated')
+#         return self.x, self.y
+#
+#     def snapshot(
+#         self, timestamp: datetime, price: float, block_number: Optional[int]
+#     ) -> dict:
+#         snapshot = {
+#             f"{self.name}_value_x": 0,
+#             f"{self.name}_value_y": self.to_y(price=price),
+#         }
+#         return snapshot
+
+
+class FuturesPosition(AbstractPosition):
+    """
+        Used for research.
+    """
+
+    def __init__(
+            self,
+            name: str,
+            amount: float,
+            open_price: float,
+            long: bool,
+            # timestamp: datetime,
+            # leverage: int = 1
+    ) -> None:
+        super().__init__(name)
+        self.amount = amount
+        self.open_price = open_price
+        self.long = long
+        # self.leverage = leverage
+
+        # self.timestamp = timestamp
+
+        self.res_after_close = 0
+        self.is_open = True
+
+        self.payments = 0
+
+    def payoff(self, price):
+        res = self.amount * (price - self.open_price)
+        if self.long:
+            return res
+        else:
+            return -res
+
+    def charge_payments(self, price: float, funding_rate: float, dt_prev: datetime, dt_now: datetime):
+        """
+            funding_rate - ставка в секунду
+            годовая x  -> [(1 + x)**(1 / (365*24*60*60)) - 1] = funding_rate в скунду
+        """
+        if not self.is_open:
+            return None
+
+        self.payments += -self.amount * price * funding_rate * (dt_now - dt_prev).seconds
+
+    def close(self, price):
+        if not self.is_open:
+            return None
+
+        self.is_open = False
+        self.res_after_close = self.payoff(price)
+        self.amount = 0
+
+    def withdraw(self, price):
+        self.close(price)
+        y_res = self.res_after_close
+        self.res_after_close = 0
+
+        return y_res + self.payments
+
+    def to_x(self, price: float) -> float:
+        return 0
+
+    def to_y(self, price: float) -> float:
+        if self.is_open:
+            return self.payoff(price)
+        else:
+            return self.res_after_close
+
+    def to_xy(self, price: float) -> Tuple[float, float]:
+        return 0, self.to_y(price=price)
+
+    def snapshot(
+        self, timestamp: datetime, price: float, block_number: Optional[int]
+    ) -> dict:
+        snapshot = {
+            f"{self.name}_value_x": self.to_x(price=price),
+            f"{self.name}_value_y": self.to_y(price=price) + self.payments,
+            f"{self.name}_amount": self.amount,
+            f"{self.name}_futures_payments": self.payments
+        }
+        return snapshot
+
+
+class OptionPosition(AbstractPosition):
+    """"
+            Used for research.
+    """
+
+    def __init__(
+            self,
+            name: str,
+            amount: float,
+            strike_price: float,
+            cost: float,
+            long: bool,
+            call: bool
+    ) -> None:
+        super().__init__(name)
+        self.amount = amount
+        self.strike_price = strike_price
+
+        self.cost = cost
+
+        self.long = long
+        self.call = call
+
+        self.res_after_close = 0
+
+        self.is_open = True
+
+    def payoff(self, price) -> float:
+        if self.call:
+            price_d = max(self.strike_price, price) - self.strike_price
+        else:
+            price_d = self.strike_price - min(self.strike_price, price)
+
+        res = (price_d - self.cost) * self.amount
+
+        if self.long:
+            return res
+        else:
+            return -res
+
+    def to_x(self, price: float) -> float:
+        return 0.
+
+    def to_y(self, price: float) -> float:
+        if self.is_open:
+            return self.payoff(price)
+        else:
+            return self.res_after_close
+
+    def to_xy(self, price: float) -> Tuple[float, float]:
+        return 0, self.to_y(price=price)
+
+    def close(self, price):
+        if not self.is_open:
+            return None
+
+        self.is_open = False
+
+        self.res_after_close = self.payoff(price)
+
+    def withdraw(self, price):
+        self.close(price)
+
+        y_res = self.res_after_close
+        self.res_after_close = 0
+
+        return y_res
+
+    def snapshot(
+            self, timestamp: datetime, price: float, block_number: Optional[int]
+    ) -> dict:
+        snapshot = {
+            f"{self.name}_value_x": self.to_x(price=price),
+            f"{self.name}_value_y": self.to_y(price=price),
+        }
+        return snapshot
+
+
 class BiCurrencyPosition(AbstractPosition):
     """
     ``BiCurrencyPosition`` is a class corresponding to currency pair vault.
 
     Attributes:
         name: Unique name for the position.
-        swap_fee: Exchange fee expressed as a percentage.
+        swap_fee: Exchange fee expressed as a fraction.
         gas_cost: Gas costs, expressed in Y currency.
         x: Amount of asset X.
         y: Amount of asset Y.
@@ -256,6 +515,7 @@ class BiCurrencyPosition(AbstractPosition):
         return self.x, self.y
 
     def swap_x_to_y(self, dx: float, price: float) -> float:
+        print("swap x to y")
         """
         Swap some X to Y.
 
@@ -270,13 +530,14 @@ class BiCurrencyPosition(AbstractPosition):
         assert dx >= 0, f"Incorrect dX = {dx}"
 
         self.x -= dx
-        dy = price * (1 - self.swap_fee) * dx
+        dy = dx * (1 - self.swap_fee) * price
         self.y += dy
         self.total_gas_costs += self.gas_cost
 
         return dy
 
     def swap_y_to_x(self, dy: float, price: float) -> float:
+        print("swap y to x")
         """
         Swap some Y to X.
 
@@ -291,7 +552,7 @@ class BiCurrencyPosition(AbstractPosition):
         assert dy >= 0, f"Incorrect dY = {dy}"
 
         self.y -= dy
-        dx = (1 - self.swap_fee) * dy / price
+        dx = dy * (1 - self.swap_fee) / price
         self.x += dx
         self.total_gas_costs += self.gas_cost
         return dx

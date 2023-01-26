@@ -3,6 +3,7 @@ from mellow_sdk.data import RawDataUniV3
 from mellow_sdk.strategies import UniV3Passive
 from mellow_sdk.backtest import Backtest
 from mellow_sdk.viewers import RebalanceViewer, UniswapViewer, PortfolioViewer
+from mellow_sdk.positions import BiCurrencyPosition, UniV3Position
 
 pool = Pool(Token.WBTC, Token.WETH, Fee.MIDDLE)
 
@@ -16,8 +17,8 @@ univ3_passive = UniV3Passive(
     name='passive'
 )
 
-bt = Backtest(univ3_passive)
-portfolio_history, rebalance_history, uni_history = bt.backtest(data.swaps)
+bt = Backtest(strategy=univ3_passive)
+portfolio_history, rebalance_history, uni_history = bt.backtest(df=data.swaps)
 
 rv = RebalanceViewer(rebalance_history)
 uv = UniswapViewer(uni_history)

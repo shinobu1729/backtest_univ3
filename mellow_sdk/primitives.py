@@ -560,6 +560,6 @@ POOLS = [
         "fee": Fee.LOW,
     },
 ]
-MIN_TICK = -887272
-MAX_TICK = 887272
+MIN_TICK = -1887272
+MAX_TICK = 1887272
 SPACING = {Fee.LOW: 10, Fee.MIDDLE: 60, Fee.HIGH: 200}
