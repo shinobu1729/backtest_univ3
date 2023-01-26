@@ -515,7 +515,6 @@ class BiCurrencyPosition(AbstractPosition):
         return self.x, self.y
 
     def swap_x_to_y(self, dx: float, price: float) -> float:
-        print("swap x to y")
         """
         Swap some X to Y.
 
@@ -537,7 +536,6 @@ class BiCurrencyPosition(AbstractPosition):
         return dy
 
     def swap_y_to_x(self, dy: float, price: float) -> float:
-        print("swap y to x")
         """
         Swap some Y to X.
 

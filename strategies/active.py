@@ -49,4 +49,8 @@ rv.rebalance_history.to_df().shape[0]
 
 rebalances_plot.show()
 intervals_plot.show()
+fig2.show()
+fig4.show()
+fig6.show()
+
 rebalances_plot.write_image('catch_rebalances.png')

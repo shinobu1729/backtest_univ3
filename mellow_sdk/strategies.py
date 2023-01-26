@@ -351,11 +351,9 @@ class StrategyCatchThePrice(AbstractStrategy):
         self.w = 0
 
     def create_pos(self, x_in, y_in, price, timestamp, portfolio):
-        print("- Create_pos -")
         """
             Swaps x_in, y_in in right proportion and mint to new interval
         """
-        print("pos_num=", self.pos_num)
         if self.pos_num is None:
             self.pos_num = 1
         else:
@@ -363,11 +361,9 @@ class StrategyCatchThePrice(AbstractStrategy):
 
         # bicurrency position that can swap tokens
         bi_cur: BiCurrencyPosition = portfolio.get_position('main_vault')
-        print("main_vault:", bi_cur.to_xy(price))
 
         # add tokens to bicurrency position
         bi_cur.deposit(x_in, y_in)
-        print("[main_vault deposit]", "x_in:", x_in, "y_in:", y_in)
 
         # new uni position
         uni_pos = UniV3Position(
@@ -387,7 +383,6 @@ class StrategyCatchThePrice(AbstractStrategy):
         )
 
         # swap tokens to right proportion (if price in interval swaps to equal liquidity in each token)
-        print("dx,dy:", dx, dy, "をスワップすればoptimalになるよ")
         if dx > 0:
             bi_cur.swap_x_to_y(dx, price=price)
         if dy > 0:
@@ -396,19 +391,14 @@ class StrategyCatchThePrice(AbstractStrategy):
         x_uni, y_uni = uni_pos.aligner.get_amounts_after_optimal_swap(
             x_in, y_in, swap_fee=bi_cur.swap_fee, price=price
         )
-
-        print("Swapped")
         assert (x_uni, y_uni == bi_cur.to_xy(price))
         optimal = uni_pos.aligner.check_xy_is_optimal(price, x_uni, y_uni)
-        print(optimal[0], optimal[1], optimal[1] - optimal[2])
 
         # withdraw tokens from bicurrency
         # because of float numbers precision subtract 1e-9
-        print("[main_vault withdraw]", "x", x_uni, "y", y_uni)
         bi_cur.withdraw(x_uni, y_uni)
 
         # deposit tokens to uni
-        print("[uni_pos deposit]", "x", x_uni, "y", y_uni)
         uni_pos.deposit(x_uni, y_uni, price=price)
 
         # remember last mint price to track price in interval
@@ -416,11 +406,6 @@ class StrategyCatchThePrice(AbstractStrategy):
 
         # remember timestamp price was in interval
         self.last_timestamp_in_interval = timestamp
-
-        print("=== Summary ====")
-        print("main_vault", "xy", bi_cur.to_xy(price), "price", price)
-        print("uni_pos", "xy", uni_pos.to_xy(price), "price", price)
-        print("================")
 
     def rebalance(self, *args, **kwargs) -> str:
         """
@@ -443,7 +428,6 @@ class StrategyCatchThePrice(AbstractStrategy):
             return None
 
         if len(portfolio.positions) == 0:
-            print("create main_vault")
             # create biccurency positions for swap
             bi_cur = BiCurrencyPosition(
                 name=f'main_vault',
@@ -458,7 +442,6 @@ class StrategyCatchThePrice(AbstractStrategy):
 
             # create first uni interval
             self.create_pos(x_in=1/price, y_in=1, price=price, timestamp=timestamp, portfolio=portfolio)
-            print("main_vault created")
             return 'init'
 
         # collect fees from uni
@@ -472,16 +455,12 @@ class StrategyCatchThePrice(AbstractStrategy):
 
         # if price outside interval for long create new uni position
         if (timestamp - self.last_timestamp_in_interval).total_seconds() > self.seconds_to_hold:
-            print("-- Rebalance Start --")
             uni_pos = portfolio.get_position(f'UniV3_{self.pos_num}')
             x_out, y_out = uni_pos.withdraw(price)
-            print("x_out:", x_out, "y_out:", y_out, "price:", price, "portfolio", portfolio)
 
             portfolio.remove(f'UniV3_{self.pos_num}')
-            print("uni position removed")
 
             self.create_pos(x_in=x_out, y_in=y_out, price=price, timestamp=timestamp, portfolio=portfolio)
-            print("-- Rebalance Done --")
             return 'rebalance'
 
         return None
