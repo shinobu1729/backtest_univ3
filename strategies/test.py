@@ -7,6 +7,7 @@ from mellow_sdk.positions import BiCurrencyPosition, UniV3Position
 
 
 pool_num = 1
+
 pool = Pool(
     tokenA=POOLS[pool_num]['token0'],
     tokenB=POOLS[pool_num]['token1'],
