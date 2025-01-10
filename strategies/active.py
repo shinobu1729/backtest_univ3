@@ -6,7 +6,7 @@ from mellow_sdk.viewers import RebalanceViewer, UniswapViewer, PortfolioViewer
 from mellow_sdk.positions import BiCurrencyPosition, UniV3Position
 
 
-pool_num = 1
+pool_num = 4
 pool = Pool(
     tokenA=POOLS[pool_num]['token0'],
     tokenB=POOLS[pool_num]['token1'],
@@ -20,7 +20,7 @@ catch_strat = StrategyCatchThePrice(
     name='name',
     pool=pool,
     gas_cost=0,  # in this strategy gas can eat all portfolio, for this example set 0
-    width=0.5,
+    width=0.0001,
     seconds_to_hold=60*60
 )
 
@@ -48,9 +48,10 @@ stats = portfolio_history.calculate_stats()
 rv.rebalance_history.to_df().shape[0]
 
 rebalances_plot.show()
-intervals_plot.show()
-fig2.show()
-fig4.show()
-fig6.show()
-
-rebalances_plot.write_image('catch_rebalances.png')
+# intervals_plot.show()
+# fig1.show()
+# fig2.show()
+# fig3.show()
+# fig4.show()
+# fig5.show()
+# fig6.show()

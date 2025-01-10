@@ -372,7 +372,7 @@ class UniswapViewer:
                 go.Scatter(
                     name="Lower Bound",
                     x=pos["timestamp"].to_list(),
-                    y=pos["upper_bound"].to_list(),
+                    y=(1 / pos["upper_bound"]).to_list(),  # switch price index Y => X (ETH => USDC)
                     mode="lines",
                     marker=dict(color="blue"),
                     line=dict(width=1),
@@ -382,7 +382,7 @@ class UniswapViewer:
                 go.Scatter(
                     name="Upper Bound",
                     x=pos["timestamp"].to_list(),
-                    y=pos["lower_bound"].to_list(),
+                    y=(1 / pos["lower_bound"]).to_list(),  # switch price index Y => X (ETH => USDC)
                     marker=dict(color="blue"),
                     line=dict(width=1),
                     mode="lines",
@@ -398,7 +398,7 @@ class UniswapViewer:
             go.Scatter(
                 name="Price",
                 x=swaps_df["timestamp"].to_list(),
-                y=swaps_df["price"].to_list(),
+                y=(1 / swaps_df["price"]).to_list(),  # switch price index Y => X (ETH => USDC)
                 mode="lines",
                 line=dict(color="rgb(0, 200, 0)"),
             )
@@ -438,7 +438,7 @@ class RebalanceViewer:
         fig.add_trace(
             go.Scatter(
                 x=swaps_df["timestamp"].to_list(),
-                y=swaps_df["price"],
+                y=1 / swaps_df["price"],  # switch price index Y => X (ETH => USDC)
                 name="Price",
             )
         )
@@ -450,7 +450,7 @@ class RebalanceViewer:
             fig.add_trace(
                 go.Scatter(
                     x=rebalance_df_slice["timestamp"].to_list(),
-                    y=rebalance_df_slice["price"],
+                    y=1 / rebalance_df_slice["price"],  # switch price index Y => X (ETH => USDC)
                     mode="markers",
                     # marker_color='red',
                     marker_size=7,

@@ -678,7 +678,7 @@ class UniV3Position(AbstractPosition):
         )
 
         assert is_optimal, f"""
-                    x={x}, y={y}, Lx={x_liq}, Ly={y_liq}, 
+                    x={x}, y={y}, Lx={x_liq}, Ly={y_liq},
                     lower_price={self.lower_price}, upper_price={self.upper_price}, price={price}
                         if price <= lower_price:
                             must be y=0
@@ -694,6 +694,8 @@ class UniV3Position(AbstractPosition):
         self.x_hold += x
         self.y_hold += y
         self.total_gas_costs += self.gas_cost
+
+        print("mint", x, y, d_liq, price)
 
     def burn(self, liq: float, price: float) -> Tuple[float, float]:
         """
@@ -730,6 +732,8 @@ class UniV3Position(AbstractPosition):
 
         self.total_gas_costs += self.gas_cost
 
+        print("burn", x_out, y_out)
+
         return x_out, y_out
 
     def charge_fees(self, price_0: float, price_1: float) -> None:
@@ -764,6 +768,45 @@ class UniV3Position(AbstractPosition):
         self.fees_y += fee_y
         self._fees_y_earned_ += fee_y
 
+    def charge_fees_share(self, amount0, amount1, liquidity, price_0, price_1, tick) -> None:
+        """
+        Charge fees for swap, based on the tick liquidity share
+
+        event Swap{
+            amount0,1: token amount to swap/swapped
+            tick: tick after swap
+            liquidity: tick liquidity after swap
+        }
+
+        """
+        print("tick", tick)
+        fee_x, fee_y = 0, 0
+        # 1. calc generated fee from the swap
+        if amount0 < 0:
+            # X=>Y
+            fee_x = abs(amount0) * self.fee_percent
+        if amount1 < 0:
+            # Y=>X
+            fee_y = abs(amount1) * self.fee_percent
+
+        # 2. calc my tick liquidity
+        lower_tick = round((np.log([self.lower_price]) / np.log(1.001))[0])
+        upper_tick = round((np.log([self.upper_price]) / np.log(1.001))[0])
+
+        Ltick = self.liquidity  # / (upper_tick - lower_tick + 1)
+
+        # 3. calc my revenue by tick share if within the range
+        if (self.lower_price <= price_0 and price_0 <= self.upper_price):
+            fee_x = fee_x * Ltick / (liquidity+Ltick)
+            self.fees_x += fee_x
+            self._fees_x_earned_ += fee_x
+
+            fee_y = fee_y * Ltick / (liquidity+Ltick)
+            self.fees_y += fee_y
+            self._fees_y_earned_ += fee_y
+
+            print("charge fee:", self.fees_x, self.fees_y, "swap amount:", amount0, amount1, "liquidity:", self.liquidity, liquidity)
+
     def collect_fees(self) -> Tuple[float, float]:
         """
         Collect all gained fees.
@@ -775,6 +818,7 @@ class UniV3Position(AbstractPosition):
         fees_y = self.fees_y
         self.fees_x = 0
         self.fees_y = 0
+        print("collect_fees", fees_x, fees_y)
         return fees_x, fees_y
 
     # def reinvest_fees(self, price) -> None:

@@ -69,7 +69,7 @@ class Backtest:
 
         # if every_block:
 
-        for record in df.to_dicts():
+        for record in df.to_dicts():  # record gets single swap event one by one.
             is_rebalanced = self.strategy.rebalance(
                 record=record, portfolio=self.portfolio
             )

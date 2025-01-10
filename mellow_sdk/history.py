@@ -50,8 +50,8 @@ class PortfolioHistory:
         value_of_x_cols = [col for col in df.columns if "value_x" in col]
         value_of_y_cols = [col for col in df.columns if "value_y" in col]
 
-        df_x = df[value_of_x_cols].sum(axis=1).alias("total_value_x")
-        df_y = df[value_of_y_cols].sum(axis=1).alias("total_value_y")
+        df_x = 1/df[value_of_x_cols].sum(axis=1).alias("total_value_x")
+        df_y = 1/df[value_of_y_cols].sum(axis=1).alias("total_value_y")
         return pl.DataFrame([df_x, df_y])
 
     def calculate_ils(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -70,7 +70,7 @@ class PortfolioHistory:
 
         if il_to_x_cols:
             df_x = (
-                df[il_to_x_cols].fill_null("forward").sum(axis=1).alias("total_il_to_x")
+                (1/df[il_to_x_cols]).fill_null("forward").sum(axis=1).alias("total_il_to_x")
             )
             df_y = (
                 df[il_to_y_cols].fill_null("forward").sum(axis=1).alias("total_il_to_y")

@@ -1,17 +1,22 @@
-from mellow_sdk.primitives import Pool, Token, Fee
+from mellow_sdk.primitives import Pool, POOLS
 from mellow_sdk.data import RawDataUniV3
 from mellow_sdk.strategies import UniV3Passive
 from mellow_sdk.backtest import Backtest
 from mellow_sdk.viewers import RebalanceViewer, UniswapViewer, PortfolioViewer
 from mellow_sdk.positions import BiCurrencyPosition, UniV3Position
 
-pool = Pool(Token.WBTC, Token.WETH, Fee.MIDDLE)
+pool_num = 4
+pool = Pool(
+    tokenA=POOLS[pool_num]['token0'],
+    tokenB=POOLS[pool_num]['token1'],
+    fee=POOLS[pool_num]['fee']
+)
 
 data = RawDataUniV3(pool, 'data', reload_data=False).load_from_folder()
 
 univ3_passive = UniV3Passive(
-    lower_price=data.swaps['price'].min() - 1,
-    upper_price=data.swaps['price'].max() + 1,
+    lower_price=data.swaps['price'].min() * 0.9,
+    upper_price=data.swaps['price'].max() * 1.1,
     pool=pool,
     gas_cost=0.,
     name='passive'
@@ -37,3 +42,11 @@ rebalances_plot = rv.draw_rebalances(data.swaps)
 stats = portfolio_history.calculate_stats()
 
 intervals_plot.show()
+rebalances_plot.show()
+fig1.show()
+fig2.show()
+fig3.show()
+fig4.show()
+fig5.show()
+fig6.show()
+stats.tail(2)

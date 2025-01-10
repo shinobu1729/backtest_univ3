@@ -111,8 +111,9 @@ class UniV3Passive(AbstractStrategy):
             is_rebalanced = "mint"
 
         if "UniV3Passive" in portfolio.positions:
-            uni_pos = portfolio.get_position("UniV3Passive")
-            uni_pos.charge_fees(price_before, price)
+            uni_pos: UniV3Position = portfolio.get_position("UniV3Passive")
+            # uni_pos.charge_fees(price_before, price)
+            uni_pos.charge_fees_share(amount0=record['amount0'], amount1=record['amount1'], liquidity=record['liquidity'])
 
         return is_rebalanced
 
@@ -349,6 +350,7 @@ class StrategyCatchThePrice(AbstractStrategy):
         self.last_timestamp_in_interval = None
         self.pos_num = None
         self.w = 0
+        self.create_pos_time = None
 
     def create_pos(self, x_in, y_in, price, timestamp, portfolio):
         """
@@ -371,7 +373,7 @@ class StrategyCatchThePrice(AbstractStrategy):
             lower_price=max(1.0001 ** MIN_TICK, price - self.width),
             upper_price=min(1.0001 ** MAX_TICK, price + self.width),
             fee_percent=self.fee_percent,
-            gas_cost=self.gas_cost
+            gas_cost=self.gas_cost,
         )
 
         # add new position to portfolio
@@ -392,7 +394,7 @@ class StrategyCatchThePrice(AbstractStrategy):
             x_in, y_in, swap_fee=bi_cur.swap_fee, price=price
         )
         assert (x_uni, y_uni == bi_cur.to_xy(price))
-        optimal = uni_pos.aligner.check_xy_is_optimal(price, x_uni, y_uni)
+        uni_pos.aligner.check_xy_is_optimal(price, x_uni, y_uni)
 
         # withdraw tokens from bicurrency
         # because of float numbers precision subtract 1e-9
@@ -406,6 +408,9 @@ class StrategyCatchThePrice(AbstractStrategy):
 
         # remember timestamp price was in interval
         self.last_timestamp_in_interval = timestamp
+        self.create_pos_time = timestamp
+
+        print("created", uni_pos.fees_x)
 
     def rebalance(self, *args, **kwargs) -> str:
         """
@@ -446,7 +451,9 @@ class StrategyCatchThePrice(AbstractStrategy):
 
         # collect fees from uni
         uni_pos = portfolio.get_position(f'UniV3_{self.pos_num}')
-        uni_pos.charge_fees(price_0=price_before, price_1=price)
+        # uni_pos.charge_fees(price_0=price_before, price_1=price)
+        uni_pos.charge_fees_share(amount0=record['amount0'], amount1=record['amount1'],
+                                  liquidity=record['liquidity'], price_0=price_before, price_1=price, tick=record["tick"])
 
         # if price in interval update last_timestamp_in_interval
         if abs(self.last_mint_price - price) < self.width:
@@ -455,12 +462,15 @@ class StrategyCatchThePrice(AbstractStrategy):
 
         # if price outside interval for long create new uni position
         if (timestamp - self.last_timestamp_in_interval).total_seconds() > self.seconds_to_hold:
-            uni_pos = portfolio.get_position(f'UniV3_{self.pos_num}')
-            x_out, y_out = uni_pos.withdraw(price)
+            if (self.w < 5):
+                self.w += 1
+                uni_pos: UniV3Position = portfolio.get_position(f'UniV3_{self.pos_num}')
+                x_out, y_out = uni_pos.withdraw(price)
+                print("Time:", (timestamp - self.create_pos_time))
 
-            portfolio.remove(f'UniV3_{self.pos_num}')
+                portfolio.remove(f'UniV3_{self.pos_num}')
 
-            self.create_pos(x_in=x_out, y_in=y_out, price=price, timestamp=timestamp, portfolio=portfolio)
-            return 'rebalance'
+                self.create_pos(x_in=x_out, y_in=y_out, price=price, timestamp=timestamp, portfolio=portfolio)
+                return 'rebalance'
 
         return None
