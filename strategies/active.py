@@ -6,22 +6,23 @@ from mellow_sdk.viewers import RebalanceViewer, UniswapViewer, PortfolioViewer
 from mellow_sdk.positions import BiCurrencyPosition, UniV3Position
 
 
-pool_num = 4
+pool_num = 1
+
 pool = Pool(
-    tokenA=POOLS[pool_num]['token0'],
-    tokenB=POOLS[pool_num]['token1'],
-    fee=POOLS[pool_num]['fee']
+    tokenA=POOLS[pool_num]["token0"],
+    tokenB=POOLS[pool_num]["token1"],
+    fee=POOLS[pool_num]["fee"],
 )
 
 # if there is no folder or files, create and download
-data = RawDataUniV3(pool=pool, data_dir='data', reload_data=False).load_from_folder()
+data = RawDataUniV3(pool=pool, data_dir="data", reload_data=False).load_from_folder()
 
 catch_strat = StrategyCatchThePrice(
-    name='name',
+    name="name",
     pool=pool,
     gas_cost=0,  # in this strategy gas can eat all portfolio, for this example set 0
     width=0.0001,
-    seconds_to_hold=60*60
+    seconds_to_hold=60 * 60,
 )
 
 bt = Backtest(strategy=catch_strat)
